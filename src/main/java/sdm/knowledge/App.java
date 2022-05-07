@@ -1,4 +1,4 @@
-package org.example;
+package sdm.knowledge;
 
 /**
  * Hello world!
