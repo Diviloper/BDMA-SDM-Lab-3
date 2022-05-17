@@ -62,6 +62,9 @@ public class TBox {
         // Revision
         OntClass revision = m.createClass(NS + "Revision");
 
+        // Field
+        OntClass field = m.createClass(NS + "Field");
+
 
         m.listClasses().forEach(System.out::println);
     }
