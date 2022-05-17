@@ -66,12 +66,6 @@ public class TBox {
         m.listClasses().forEach(System.out::println);
     }
 
-    private static OntClass createSubclass(OntModel m, OntClass superClass, String className) {
-        OntClass newClass = m.createClass(NS + className);
-        newClass.addSuperClass(superClass);
-        return newClass;
-    }
-
     private static void makeDisjointCompleteSubclasses(OntModel m, OntClass superClass, List<OntClass> subClasses) {
         subClasses.forEach(superClass::addSubClass);
         makeCompleteSubclasses(m, superClass, subClasses);
