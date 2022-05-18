@@ -14,46 +14,69 @@ public class TBox {
     public static void main(String[] args) {
         OntModel m = ModelFactory.createOntologyModel();
 
+        // People classes
         OntClass academic = m.createClass(NS + "Academic");
+
+        OntClass author = m.createClass(NS + "Author");
+        OntClass reviewer = m.createClass(NS + "Reviewer");
+        OntClass handler = m.createClass(NS + "Handler");
+        makeCompleteSubclasses(m, academic, Arrays.asList(author, reviewer, handler));
+
+        OntClass chair = m.createClass(NS + "Chair");
+        OntClass editor = m.createClass(NS + "Editor");
+        makeDisjointCompleteSubclasses(m, handler, Arrays.asList(chair, editor));
+
 
         // Paper classes
         OntClass paper = m.createClass(NS + "Paper");
-        OntClass poster = m.createClass(NS + "Poster");
         List<OntClass> paperSubclasses = Arrays.asList(
                 m.createClass(NS + "Full paper"),
                 m.createClass(NS + "Short paper"),
                 m.createClass(NS + "Demo paper"),
-                poster
+                m.createClass(NS + "Poster")
         );
-        createPaperClassRelationships(paper, paperSubclasses);
+        makeDisjointCompleteSubclasses(m, paper, paperSubclasses);
 
         // Venue classes
         OntClass venue = m.createClass(NS + "Venue");
+
         OntClass conference = m.createClass(NS + "Conference");
         OntClass journal = m.createClass(NS + "Journal");
-
-        venue.addSubClass(conference);
-        venue.addSubClass(journal);
+        makeDisjointCompleteSubclasses(m, venue, Arrays.asList(conference, journal));
 
         List<OntClass> conferenceSubclasses = Arrays.asList(
+                m.createClass(NS + "Regular Conference"),
                 m.createClass(NS + "Workshop"),
                 m.createClass(NS + "Symposium"),
                 m.createClass(NS + "Expert Group")
         );
+        makeDisjointCompleteSubclasses(m, conference, conferenceSubclasses);
 
-        conferenceSubclasses.forEach(conference::addSubClass);
-        makeClassesDisjoint(conferenceSubclasses);
+        // Venue Publication
+        OntClass venuePublication = m.createClass(NS + "Venue Publication");
 
         OntClass proceedings = m.createClass(NS + "Proceedings");
         OntClass volume = m.createClass(NS + "Volume");
+        makeDisjointCompleteSubclasses(m, venuePublication, Arrays.asList(proceedings, volume));
+
+        // Revision
+        OntClass revision = m.createClass(NS + "Revision");
+
+        // Field
+        OntClass field = m.createClass(NS + "Field");
 
 
-        m.listOntProperties().forEach(System.out::println);
+        m.listClasses().forEach(System.out::println);
     }
 
-    private static void createPaperClassRelationships(OntClass paper, List<OntClass> paperSubclasses) {
-        paperSubclasses.forEach(paper::addSubClass);
-        makeClassesDisjoint(paperSubclasses);
+    private static void makeDisjointCompleteSubclasses(OntModel m, OntClass superClass, List<OntClass> subClasses) {
+        subClasses.forEach(superClass::addSubClass);
+        makeCompleteSubclasses(m, superClass, subClasses);
+        makeClassesDisjoint(subClasses);
+    }
+
+    private static void makeCompleteSubclasses(OntModel m, OntClass superClass, List<OntClass> subClasses) {
+        superClass.addEquivalentClass(m.createUnionClass(null, m.createList(subClasses.iterator())));
     }
 
     private static void makeClassesDisjoint(List<OntClass> disjointClasses) {

@@ -1,22 +1,34 @@
 package sdm.knowledge;
 
-import org.eclipse.rdf4j.model.impl.SimpleLiteral;
-import org.eclipse.rdf4j.query.BindingSet;
-import org.eclipse.rdf4j.query.QueryEvaluationException;
-import org.eclipse.rdf4j.query.QueryLanguage;
-import org.eclipse.rdf4j.query.TupleQuery;
-import org.eclipse.rdf4j.query.TupleQueryResult;
-import org.eclipse.rdf4j.query.Update;
-import org.eclipse.rdf4j.repository.Repository;
-import org.eclipse.rdf4j.repository.RepositoryConnection;
-import org.eclipse.rdf4j.repository.http.HTTPRepository;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.slf4j.Marker;
-import org.slf4j.MarkerFactory;
+import java.time.LocalDate;
+
+import org.eclipse.rdf4j.model.*;
+import org.eclipse.rdf4j.model.impl.DynamicModelFactory;
+import org.eclipse.rdf4j.model.impl.SimpleValueFactory;
+import org.eclipse.rdf4j.model.util.ModelBuilder;
+import org.eclipse.rdf4j.model.util.Values;
+import org.eclipse.rdf4j.model.vocabulary.FOAF;
+import org.eclipse.rdf4j.model.vocabulary.RDF;
+import org.eclipse.rdf4j.model.vocabulary.XSD;
+
+import java.time.LocalDate;
+
+import static org.eclipse.rdf4j.model.util.Values.iri;
+import static org.eclipse.rdf4j.model.util.Values.literal;
 
 public class ABox {
-    private static Logger logger =
+    ValueFactory factory = SimpleValueFactory.getInstance();
+    IRI bob = iri(factory, "http://example.org/bob");
+    IRI name = iri(factory,"http://example.org/name");
+
+    Literal bobsName = literal(factory, "Bob");
+    Statement nameStatement = statement(factory, bob, name, bobsName);
+    Model model = DynamicModelFactory.createEmptyModel();
+    model.add(bob, name, bobsName);
+
+
+
+    /*private static Logger logger =
             LoggerFactory.getLogger(ABox.class);
     // Why This Failure marker
     private static final Marker WTF_MARKER =
@@ -102,5 +114,5 @@ public class ABox {
         } finally {
             repositoryConnection.close();
         }
-    }
+    }*/
 }
