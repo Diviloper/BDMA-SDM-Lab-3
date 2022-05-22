@@ -1,118 +1,133 @@
 package sdm.knowledge;
 
-import java.time.LocalDate;
 
-import org.eclipse.rdf4j.model.*;
-import org.eclipse.rdf4j.model.impl.DynamicModelFactory;
-import org.eclipse.rdf4j.model.impl.SimpleValueFactory;
-import org.eclipse.rdf4j.model.util.ModelBuilder;
-import org.eclipse.rdf4j.model.util.Values;
-import org.eclipse.rdf4j.model.vocabulary.FOAF;
-import org.eclipse.rdf4j.model.vocabulary.RDF;
-import org.eclipse.rdf4j.model.vocabulary.XSD;
+import com.opencsv.CSVReaderHeaderAware;
+import org.apache.jena.ontology.*;
+import org.apache.jena.rdf.model.ModelFactory;
+import org.apache.jena.riot.RDFDataMgr;
+import org.apache.jena.util.URIref;
+import org.jetbrains.annotations.NotNull;
 
-import java.time.LocalDate;
-
-import static org.eclipse.rdf4j.model.util.Values.iri;
-import static org.eclipse.rdf4j.model.util.Values.literal;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.IOException;
+import java.util.*;
+import java.util.stream.Stream;
 
 public class ABox {
-    ValueFactory factory = SimpleValueFactory.getInstance();
-    IRI bob = iri(factory, "http://example.org/bob");
-    IRI name = iri(factory,"http://example.org/name");
+    private static final Random random = new Random();
+    private static final Map<String, Integer> counters = new HashMap<>();
+    private static final Map<String, Set<String>> authorNames = new HashMap<>();
 
-    Literal bobsName = literal(factory, "Bob");
-    Statement nameStatement = statement(factory, bob, name, bobsName);
-    Model model = DynamicModelFactory.createEmptyModel();
-    model.add(bob, name, bobsName);
-
-
-
-    /*private static Logger logger =
-            LoggerFactory.getLogger(ABox.class);
-    // Why This Failure marker
-    private static final Marker WTF_MARKER =
-            MarkerFactory.getMarker("WTF");
-
-    // GraphDB
-    private static final String GRAPHDB_SERVER = "http://localhost:7200/";
-    private static final String REPOSITORY_ID = "SDM_LAB";
-
-    private static String strInsert;
-    private static String strQuery;
-
-    static {
-        strInsert =
-                "INSERT DATA {"
-                        + "<http://dbpedia.org/resource/Grace_Hopper> <http://dbpedia.org/ontology/birthDate> \"1906-12-09\"^^<http://www.w3.org/2001/XMLSchema#date> ."
-                        + "<http://dbpedia.org/resource/Grace_Hopper> <http://dbpedia.org/ontology/birthPlace> <http://dbpedia.org/resource/New_York_City> ."
-                        + "<http://dbpedia.org/resource/Grace_Hopper> <http://dbpedia.org/ontology/deathDate> \"1992-01-01\"^^<http://www.w3.org/2001/XMLSchema#date> ."
-                        + "<http://dbpedia.org/resource/Grace_Hopper> <http://dbpedia.org/ontology/deathPlace> <http://dbpedia.org/resource/Arlington_County,_Virginia> ."
-                        + "<http://dbpedia.org/resource/Grace_Hopper> <http://purl.org/dc/terms/description> \"American computer scientist and United States Navy officer.\" ."
-                        + "<http://dbpedia.org/resource/Grace_Hopper> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://dbpedia.org/ontology/Person> ."
-                        + "<http://dbpedia.org/resource/Grace_Hopper> <http://xmlns.com/foaf/0.1/gender> \"female\" ."
-                        + "<http://dbpedia.org/resource/Grace_Hopper> <http://xmlns.com/foaf/0.1/givenName> \"Grace\" ."
-                        + "<http://dbpedia.org/resource/Grace_Hopper> <http://xmlns.com/foaf/0.1/name> \"Grace Hopper\" ."
-                        + "<http://dbpedia.org/resource/Grace_Hopper> <http://xmlns.com/foaf/0.1/surname> \"Hopper\" ."
-                        + "}";
-
-        strQuery =
-                "SELECT ?name FROM DEFAULT WHERE {" +
-                        "?s <http://xmlns.com/foaf/0.1/name> ?name .}";
-    }
-
-    private static RepositoryConnection getRepositoryConnection() {
-        Repository repository = new HTTPRepository(GRAPHDB_SERVER, REPOSITORY_ID);
-        repository.initialize();
-        RepositoryConnection repositoryConnection = repository.getConnection();
-        return repositoryConnection;
-    }
-
-    private static void insert(RepositoryConnection repositoryConnection) {
-
-        repositoryConnection.begin();
-        Update updateOperation = repositoryConnection.prepareUpdate(QueryLanguage.SPARQL, strInsert);
-        updateOperation.execute();
-
-        try {
-            repositoryConnection.commit();
-        } catch (Exception e) {
-            if (repositoryConnection.isActive())
-                repositoryConnection.rollback();
+    public static void main(String[] args) throws IOException {
+        if (args.length < 3) {
+            System.out.println("Arguments: <Input model TBOX> <Data folder> <Output file>");
         }
+        String modelFilePath = args[0];
+        String dataFolder = args[1];
+        String outputPath = args[2];
+
+        OntModel model = ModelFactory.createOntologyModel(OntModelSpec.OWL_DL_MEM_RULE_INF);
+        RDFDataMgr.read(model, modelFilePath);
+
+        populateModel(model, dataFolder);
     }
 
-    private static void query(RepositoryConnection repositoryConnection) {
+    public static void populateModel(OntModel model, String dataPath) throws IOException {
+        // Papers, authors and venues
 
-        TupleQuery tupleQuery = repositoryConnection.prepareTupleQuery(QueryLanguage.SPARQL, strQuery);
-        TupleQueryResult result = null;
-        try {
-            result = tupleQuery.evaluate();
-            while (result.hasNext()) {
-                BindingSet bindingSet = result.next();
+        Map<String, OntClass> conferenceTypes = new HashMap<>();
+        List<OntClass> conferenceSubclasses = Arrays.asList(
+                model.getOntClass(TBox.Classes.regularConference),
+                model.getOntClass(TBox.Classes.workshop),
+                model.getOntClass(TBox.Classes.symposium),
+                model.getOntClass(TBox.Classes.expertGroup)
+        );
+        OntClass journalClass = model.getOntClass(TBox.Classes.journal);
+        OntProperty venueName = model.getDatatypeProperty(TBox.DataProperties.venueName);
 
-                SimpleLiteral name = (SimpleLiteral) bindingSet.getValue("name");
-                logger.trace("name = " + name.stringValue());
+        CSVReaderHeaderAware reader = new CSVReaderHeaderAware(new FileReader(dataPath + "data.csv"));
+        Map<String, String> values;
+        while ((values = reader.readMap()) != null) {
+            boolean conference = values.get("Document Type").equals("Conference Paper");
+
+            // Paper
+            Individual paper = createPaper(model, values, conference);
+
+            // Authors
+            List<String> authors = Arrays.stream(values.get("Authors").split(", ")).toList();
+            List<String> authorsId = Arrays.stream(values.get("Author(s) ID").split(";")).toList();
+            for (int i = 0; i < authors.size(); i++) {
+                createAuthorPaper(model, authorsId.get(i), authors.get(i), paper);
             }
-        } catch (QueryEvaluationException qee) {
-            logger.error(WTF_MARKER, qee.getStackTrace().toString(), qee);
-        } finally {
-            result.close();
+
+            // Venue
+            OntClass venueClass = conference ? conferenceSubclasses.get(random.nextInt(4)) : journalClass;
+            Individual venue = venueClass.createIndividual(autoName("V"));
+            venue.addLiteral(venueName, model.createTypedLiteral(values.get("Source title")));
+
         }
     }
 
-    public static void main(String[] args) {
-        RepositoryConnection repositoryConnection = null;
-        try {
-            repositoryConnection = getRepositoryConnection();
-            System.out.println(repositoryConnection);
-            // insert(repositoryConnection);
-            query(repositoryConnection);
+    @NotNull
+    private static Individual createPaper(OntModel model, Map<String, String> values, boolean conference) {
+        List<OntClass> paperSubclasses = Arrays.asList(
+                model.getOntClass(TBox.Classes.fullPaper),
+                model.getOntClass(TBox.Classes.shortPaper),
+                model.getOntClass(TBox.Classes.demoPaper),
+                model.getOntClass(TBox.Classes.poster)
+        );
 
-        } catch (Throwable t) {
-            logger.error(WTF_MARKER, t.getMessage(), t);
-        } finally {
-            repositoryConnection.close();
+        OntProperty submittedAs = model.getObjectProperty(TBox.ObjectProperties.submittedAs);
+        OntProperty paperTitle = model.getDatatypeProperty(TBox.DataProperties.title);
+        OntProperty paperAbstract = model.getDatatypeProperty(TBox.DataProperties.paperAbstract);
+        OntClass submissionClass = model.getOntClass(TBox.Classes.submission);
+
+        OntClass paperClass = paperSubclasses.get(random.nextInt(conference ? 4 : 3));
+        Individual paper = paperClass.createIndividual(name(values.get("DOI")));
+        Individual submission = submissionClass.createIndividual(autoName("Sub"));
+        paper.addProperty(submittedAs, submission);
+        paper.addLiteral(paperTitle, model.createTypedLiteral(values.get("Title")));
+        paper.addLiteral(paperAbstract, model.createTypedLiteral(values.get("Abstract")));
+
+        return paper;
+    }
+
+    private static void createAuthorPaper(OntModel model, String id, String name, Individual paper) {
+        OntClass authorClass = model.getOntClass(TBox.Classes.author);
+        OntProperty personName = model.getDatatypeProperty(TBox.DataProperties.name);
+        OntProperty authorsPaper = model.getObjectProperty(TBox.ObjectProperties.authors);
+
+        String aid = name("A", id);
+
+        Individual author;
+        if (authorNames.containsKey(aid)) {
+            author = model.getIndividual(aid);
+        } else {
+            authorNames.put(aid, new HashSet<>());
+            author = authorClass.createIndividual(aid);
         }
-    }*/
+
+        if (!authorNames.get(aid).contains(name)) {
+            author.addLiteral(personName, model.createTypedLiteral(name));
+            authorNames.get(aid).add(name);
+        }
+
+        author.addProperty(authorsPaper, paper);
+    }
+
+    private static String name(String prefix, String id) {
+        return TBox.NS + prefix + URIref.encode(id);
+    }
+
+    private static String name(String id) {
+        return TBox.NS + URIref.encode(id);
+    }
+
+    private static String autoName(String prefix) {
+        counters.putIfAbsent(prefix, 0);
+        String n = name(prefix + counters.get(prefix));
+        counters.put(prefix, counters.get(prefix) + 1);
+        return n;
+    }
 }
