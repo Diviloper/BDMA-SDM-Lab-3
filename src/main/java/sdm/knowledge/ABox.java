@@ -8,27 +8,26 @@ import org.apache.jena.ontology.*;
 import org.apache.jena.rdf.model.ModelFactory;
 import org.apache.jena.riot.RDFDataMgr;
 import org.apache.jena.riot.RDFFormat;
-import org.apache.jena.util.URIref;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 
 public class ABox {
     private static final Random random = new Random();
-    
+
     private final OntModel model;
-    private final Map<String, OntClass> classCache = new HashMap<>();
-    private final Map<String, DatatypeProperty> dataPropCache = new HashMap<>();
-    private final Map<String, ObjectProperty> objPropCache = new HashMap<>();
     private final Map<String, Integer> counters = new HashMap<>();
     private final Map<String, Set<String>> authorNames = new HashMap<>();
     private final Map<String, String> venueNames = new HashMap<>();
-    private final Map<String, Set<Individual>> venueHandlers = new HashMap<>();
+    private final Map<String, Individual> papers = new HashMap<>();
     private final Map<String, Individual> paperSubmissions = new HashMap<>();
+    private final Map<String, Individual> paperRevisions = new HashMap<>();
     private final Map<String, Individual> fields = new HashMap<>();
 
     public ABox(OntModel model) {
@@ -45,8 +44,8 @@ public class ABox {
 
         OntModel model = ModelFactory.createOntologyModel(OntModelSpec.OWL_DL_MEM);
         RDFDataMgr.read(model, modelFilePath);
-        
-        
+
+
         ABox abox = new ABox(model);
         abox.populateModel(dataFolder);
 
@@ -82,14 +81,68 @@ public class ABox {
             paperSubmissions.put(values.get("DOI"), submission);
         }
 
+        reader = new CSVReaderHeaderAware(new FileReader(dataPath + "citations.csv"));
+        while ((values = reader.readMap()) != null) {
+            createCitation(values.get("Paper"), values.get("Citation"));
+        }
+
+        reader = new CSVReaderHeaderAware(new FileReader(dataPath + "reviews.csv"));
+        while ((values = reader.readMap()) != null) {
+            if (values.get("Decision").equals("False") || paperRevisions.containsKey(values.get("Paper"))) continue;
+            createRevision(values);
+        }
+
+        reader = new CSVReaderHeaderAware(new FileReader(dataPath + "reviewers.csv"));
+        while ((values = reader.readMap()) != null) {
+            addReviewers(values);
+        }
 
     }
 
+    private void addReviewers(Map<String, String> values) {
+        ObjectProperty doneBy = model.getObjectProperty(TBox.ObjectProperties.doneBy);
+        Individual revision = paperRevisions.get(values.get("Paper"));
+        for (String reviewer : values.get("Reviewers").split(";")) {
+            revision.addProperty(doneBy, model.getIndividual(name("A", reviewer)));
+        }
+    }
+
+    private void createRevision(Map<String, String> values) {
+        OntClass revisionClass = model.getOntClass(TBox.Classes.revision);
+        ObjectProperty reviews = model.getObjectProperty(TBox.ObjectProperties.reviews);
+        DatatypeProperty accepted = model.getDatatypeProperty(TBox.DataProperties.accepted);
+        DatatypeProperty reviewText = model.getDatatypeProperty(TBox.DataProperties.reviewText);
+        OntProperty managedBy = model.getObjectProperty(TBox.ObjectProperties.managedBy);
+        OntProperty assigns = model.getObjectProperty(TBox.ObjectProperties.assigns);
+        OntProperty submittedTo = model.getObjectProperty(TBox.ObjectProperties.submittedTo);
+
+        Individual revision = revisionClass.createIndividual(autoName("R"));
+        revision.addLiteral(accepted, model.createTypedLiteral(true));
+        revision.addLiteral(reviewText, model.createTypedLiteral(values.get("Review")));
+
+        Individual submission = paperSubmissions.get(values.get("Paper"));
+        revision.addProperty(reviews, submission);
+
+        Individual venue = submission.getPropertyValue(submittedTo).as(Individual.class);
+        Individual handler = venue.listPropertyValues(managedBy).toList().get(random.nextInt(3)).as(Individual.class);
+        handler.addProperty(assigns, revision);
+
+
+        paperRevisions.put(values.get("Paper"), revision);
+    }
+
+    private void createCitation(String paper, String citation) {
+        ObjectProperty cites = model.getObjectProperty(TBox.ObjectProperties.cites);
+        Individual citer = papers.get(paper);
+        Individual cited = papers.get(citation);
+        citer.addProperty(cites, cited);
+    }
+
     private void createFields(OntModel model, Map<String, String> values, Individual paper, Individual venue) {
-        OntClass fieldClass = getClass(TBox.Classes.field);
-        OntProperty keywordProp = getDataProp(TBox.DataProperties.keyword);
-        OntProperty paperRelatedTo = getObjProp(TBox.ObjectProperties.paperRelatedTo);
-        OntProperty venueRelatedTo = getObjProp(TBox.ObjectProperties.venueRelatedTo);
+        OntClass fieldClass = model.getOntClass(TBox.Classes.field);
+        OntProperty keywordProp = model.getDatatypeProperty(TBox.DataProperties.keyword);
+        OntProperty paperRelatedTo = model.getObjectProperty(TBox.ObjectProperties.paperRelatedTo);
+        OntProperty venueRelatedTo = model.getObjectProperty(TBox.ObjectProperties.venueRelatedTo);
 
         for (String keyword : values.get("Index Keywords").split("; ")) {
             Individual field;
@@ -106,24 +159,25 @@ public class ABox {
 
     @NotNull
     private Individual createSubmission(OntModel model, Individual paper, Individual venue, Individual venuePublication) {
-        OntClass submissionClass = getClass(TBox.Classes.submission);
-        OntProperty submittedAs = getObjProp(TBox.ObjectProperties.submittedAs);
-        OntProperty submittedTo = getObjProp(TBox.ObjectProperties.submittedTo);
-        OntProperty publishedIn = getObjProp(TBox.ObjectProperties.publishedIn);
+        OntClass submissionClass = model.getOntClass(TBox.Classes.submission);
+        OntProperty submittedAs = model.getObjectProperty(TBox.ObjectProperties.submittedAs);
+        OntProperty submittedTo = model.getObjectProperty(TBox.ObjectProperties.submittedTo);
+        OntProperty publishedIn = model.getObjectProperty(TBox.ObjectProperties.publishedIn);
 
         Individual submission = submissionClass.createIndividual(autoName("Sub"));
         paper.addProperty(submittedAs, submission);
         submission.addProperty(submittedTo, venue);
         submission.addProperty(publishedIn, venuePublication);
+
         return submission;
     }
 
     @NotNull
     private Individual createVenuePublication(OntModel model, Individual venue, Map<String, String> values, boolean conference) {
-        OntClass volumeClass = getClass(TBox.Classes.volume);
-        OntClass proceedingsClass = getClass(TBox.Classes.proceedings);
-        OntProperty venuePublicationYear = getDataProp(TBox.DataProperties.year);
-        OntProperty belongsTo = getObjProp(TBox.ObjectProperties.belongsTo);
+        OntClass volumeClass = model.getOntClass(TBox.Classes.volume);
+        OntClass proceedingsClass = model.getOntClass(TBox.Classes.proceedings);
+        OntProperty venuePublicationYear = model.getDatatypeProperty(TBox.DataProperties.year);
+        OntProperty belongsTo = model.getObjectProperty(TBox.ObjectProperties.belongsTo);
 
         OntClass venuePublicationClass = conference ? proceedingsClass : volumeClass;
         String vName = venueNames.get(values.get("Source title"));
@@ -137,16 +191,17 @@ public class ABox {
 
     private Individual createVenue(OntModel model, Map<String, String> values, boolean conference) {
         List<OntClass> conferenceSubclasses = Arrays.asList(
-                getClass(TBox.Classes.regularConference),
-                getClass(TBox.Classes.workshop),
-                getClass(TBox.Classes.symposium),
-                getClass(TBox.Classes.expertGroup)
+                model.getOntClass(TBox.Classes.regularConference),
+                model.getOntClass(TBox.Classes.workshop),
+                model.getOntClass(TBox.Classes.symposium),
+                model.getOntClass(TBox.Classes.expertGroup)
         );
-        OntClass journalClass = getClass(TBox.Classes.journal);
-        OntProperty venueName = getDataProp(TBox.DataProperties.venueName);
+        OntClass journalClass = model.getOntClass(TBox.Classes.journal);
+        OntProperty venueName = model.getDatatypeProperty(TBox.DataProperties.venueName);
 
         OntClass venueClass = conference ? conferenceSubclasses.get(random.nextInt(4)) : journalClass;
-        OntClass handlerClass = getClass(conference ? TBox.Classes.chair : TBox.Classes.editor);
+        OntClass handlerClass = model.getOntClass(conference ? TBox.Classes.chair : TBox.Classes.editor);
+        OntProperty managedBy = model.getObjectProperty(TBox.ObjectProperties.managedBy);
 
         String vName = values.get("Source title");
         Individual venue;
@@ -155,10 +210,10 @@ public class ABox {
             venue = venueClass.createIndividual(venueNames.get(vName));
             venue.addLiteral(venueName, model.createTypedLiteral(vName));
 
-            venueHandlers.put(vName, Set.of(
-                    handlerClass.createIndividual(autoName("H")),
-                    handlerClass.createIndividual(autoName("H")),
-                    handlerClass.createIndividual(autoName("H"))));
+            for (int i = 0; i < 3; i++) {
+                Individual handler = handlerClass.createIndividual(autoName("H"));
+                venue.addProperty(managedBy, handler);
+            }
         } else {
             venue = model.getIndividual(venueNames.get(vName));
         }
@@ -176,27 +231,30 @@ public class ABox {
     @NotNull
     private Individual createPaper(OntModel model, Map<String, String> values, boolean conference) {
         List<OntClass> paperSubclasses = Arrays.asList(
-                getClass(TBox.Classes.fullPaper),
-                getClass(TBox.Classes.shortPaper),
-                getClass(TBox.Classes.demoPaper),
-                getClass(TBox.Classes.poster)
+                model.getOntClass(TBox.Classes.fullPaper),
+                model.getOntClass(TBox.Classes.shortPaper),
+                model.getOntClass(TBox.Classes.demoPaper),
+                model.getOntClass(TBox.Classes.poster)
         );
 
-        OntProperty paperTitle = getDataProp(TBox.DataProperties.title);
-        OntProperty paperAbstract = getDataProp(TBox.DataProperties.paperAbstract);
+        OntProperty paperDOI = model.getDatatypeProperty(TBox.DataProperties.doi);
+        OntProperty paperTitle = model.getDatatypeProperty(TBox.DataProperties.title);
+        OntProperty paperAbstract = model.getDatatypeProperty(TBox.DataProperties.paperAbstract);
 
         OntClass paperClass = paperSubclasses.get(random.nextInt(conference ? 4 : 3));
-        Individual paper = paperClass.createIndividual(name(values.get("DOI")));
+        Individual paper = paperClass.createIndividual(autoName("P"));
+        paper.addLiteral(paperDOI, model.createTypedLiteral(values.get("DOI")));
         paper.addLiteral(paperTitle, model.createTypedLiteral(values.get("Title")));
         paper.addLiteral(paperAbstract, model.createTypedLiteral(values.get("Abstract")));
 
+        papers.put(values.get("DOI"), paper);
         return paper;
     }
 
     private void createAuthorPaper(OntModel model, String id, String name, Individual paper) {
-        OntClass authorClass = getClass(TBox.Classes.author);
-        OntProperty personName = getDataProp(TBox.DataProperties.name);
-        OntProperty authorsPaper = getObjProp(TBox.ObjectProperties.authors);
+        OntClass authorClass = model.getOntClass(TBox.Classes.author);
+        OntProperty personName = model.getDatatypeProperty(TBox.DataProperties.name);
+        OntProperty authorsPaper = model.getObjectProperty(TBox.ObjectProperties.authors);
 
         String aid = name("A", id);
 
@@ -215,11 +273,11 @@ public class ABox {
     }
 
     private String name(String prefix, String id) {
-        return TBox.NS + prefix + URIref.encode(id);
+        return TBox.NS + prefix + URLEncoder.encode(id, StandardCharsets.UTF_8);
     }
 
     private String name(String id) {
-        return TBox.NS + URIref.encode(id);
+        return TBox.NS + URLEncoder.encode(id, StandardCharsets.UTF_8);
     }
 
     private String autoName(String prefix) {
@@ -227,24 +285,5 @@ public class ABox {
         String n = name(prefix + counters.get(prefix));
         counters.put(prefix, counters.get(prefix) + 1);
         return n;
-    }
-    
-    private OntClass getClass(String name) {
-        if (!classCache.containsKey(name)) {
-            classCache.put(name, model.getOntClass(name));
-        }
-        return classCache.get(name);
-    }
-    private DatatypeProperty getDataProp(String name) {
-        if (!dataPropCache.containsKey(name)) {
-            dataPropCache.put(name, model.getDatatypeProperty(name));
-        }
-        return dataPropCache.get(name);
-    }
-    private ObjectProperty getObjProp(String name) {
-        if (!objPropCache.containsKey(name)) {
-            objPropCache.put(name, model.getObjectProperty(name));
-        }
-        return objPropCache.get(name);
     }
 }

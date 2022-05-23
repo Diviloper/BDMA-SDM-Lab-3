@@ -105,6 +105,7 @@ public class TBox {
     public static class DataProperties {
         public static final String name = NS + "name";
         public static final String title = NS + "title";
+        public static final String doi = NS + "doi";
         public static final String paperAbstract = NS + "abstract";
         public static final String accepted = NS + "accepted";
         public static final String reviewText = NS + "review_text";
@@ -270,6 +271,7 @@ public class TBox {
         name.addSuperProperty(RDFS.label);
 
         // Paper attributes
+        DataProperties.createStringAttribute(m, DataProperties.doi, paper);
         DatatypeProperty paperTitle = DataProperties.createStringAttribute(m, DataProperties.title, paper);
         paperTitle.addSuperProperty(RDFS.label);
         DatatypeProperty paperAbstract = DataProperties.createStringAttribute(m, DataProperties.paperAbstract, paper);
