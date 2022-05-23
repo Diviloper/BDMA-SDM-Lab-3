@@ -110,6 +110,7 @@ public class TBox {
         public static final String reviewText = NS + "review_text";
         public static final String year = NS + "year";
         public static final String venueName = NS + "venue_name";
+        public static final String keyword = NS + "keyword";
 
         static DatatypeProperty createStringAttribute(OntModel m, String name, OntClass domain) {
             return createAttribute(m, name, domain, XSDDatatype.XSDstring, false);
@@ -280,6 +281,8 @@ public class TBox {
         revisionText.addSuperProperty(RDFS.comment);
 
         // Field attributes
+        DatatypeProperty keyword = DataProperties.createStringAttribute(m, DataProperties.keyword, field);
+        keyword.addSuperProperty(RDFS.label);
 
         // Venue attributes
         DatatypeProperty venueName = DataProperties.createStringAttribute(m, DataProperties.venueName, venue);
