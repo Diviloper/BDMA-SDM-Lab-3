@@ -39,6 +39,7 @@ public class TBox {
         public static final String volume = NS + "Volume";
         public static final String revision = NS + "Revision";
         public static final String field = NS + "Field";
+        public static final String location = DBPO + "Location";
 
         static void makeDisjointCompleteSubclasses(OntModel m, OntClass superClass, List<OntClass> subClasses) {
             makeCompleteSubclasses(m, superClass, subClasses);
@@ -70,19 +71,24 @@ public class TBox {
         public static final String cites = NS + "cites";
         public static final String citedBy = NS + "cited_by";
         public static final String submittedAs = NS + "submitted_as";
+        public static final String ofPaper = NS + "of";
         public static final String submittedTo = NS + "submitted_to";
+        public static final String hasSubmission = NS + "has_submission";
         public static final String publishedIn = NS + "published_in";
+        public static final String hasPublication = NS + "has_publication";
         public static final String belongsTo = NS + "belongs_to";
         public static final String publishes = NS + "publishes";
         public static final String manages = NS + "manages";
         public static final String managedBy = NS + "managed_by";
         public static final String assigns = NS + "assigns";
+        public static final String assignedBy = NS + "assigned_by";
         public static final String doneBy = NS + "done_by";
         public static final String takesPartIn = NS + "takes_part_in";
         public static final String reviews = NS + "reviews";
         public static final String reviewedBy = NS + "reviewed_by";
         public static final String paperRelatedTo = NS + "paper_related_to";
         public static final String venueRelatedTo = NS + "venue_related_to";
+        public static final String takesPlaceIn = NS + "takes_place_in";
 
         static OntProperty createProperty(OntModel m, String name, OntClass domain, OntClass range) {
             return createProperty(m, name, domain, range, null);
@@ -109,6 +115,10 @@ public class TBox {
         public static final String paperAbstract = NS + "abstract";
         public static final String accepted = NS + "accepted";
         public static final String reviewText = NS + "review_text";
+        public static final String revisionDateStart = NS + "revision_date_start";
+        public static final String revisionDateEnd = NS + "revision_date_end";
+        public static final String submissionDate = NS + "submission_date";
+        public static final String submissionAcceptedDate = NS + "submission_accepted_date";
         public static final String year = NS + "year";
         public static final String venueName = NS + "venue_name";
         public static final String keyword = NS + "keyword";
@@ -163,6 +173,7 @@ public class TBox {
     }
 
     public static String NS = "https://ferrazzi.divi/#";
+    public static String DBPO = "http://dbpedia.org/Ontology/";
     private static int count = 1;
 
     private static String internal() {
@@ -176,7 +187,7 @@ public class TBox {
         String outputPath = args[0];
 
         OntModel m = createBaseModel();
-//        OntModel m = createOverkillModel();
+//        extendModel(m);
 
         FileOutputStream output = new FileOutputStream(outputPath);
         RDFDataMgr.write(output, m, RDFFormat.TURTLE);
@@ -185,6 +196,7 @@ public class TBox {
     private static OntModel createBaseModel() {
         OntModel m = ModelFactory.createOntologyModel(OntModelSpec.OWL_DL_MEM);
         m.setNsPrefix("fd", NS);
+        m.setNsPrefix("dbpo", DBPO);
 
         // -------------------
         // ------Classes------
@@ -233,6 +245,7 @@ public class TBox {
         OntClass proceedings = m.createClass(Classes.proceedings);
         OntClass volume = m.createClass(Classes.volume);
         Classes.makeSubclasses(venuePublication, proceedings, volume);
+        OntClass location = m.createClass(Classes.location);
 
         // Revision
         OntClass revision = m.createClass(Classes.revision);
@@ -247,20 +260,22 @@ public class TBox {
         ObjectProperties.createProperty(m, ObjectProperties.authors, author, paper, ObjectProperties.authoredBy);
 
         ObjectProperties.createProperty(m, ObjectProperties.cites, paper, paper, ObjectProperties.citedBy);
-        ObjectProperties.createProperty(m, ObjectProperties.submittedAs, paper, submission);
-        ObjectProperties.createProperty(m, ObjectProperties.submittedTo, submission, venue);
-        ObjectProperties.createProperty(m, ObjectProperties.publishedIn, submission, venuePublication);
+        ObjectProperties.createProperty(m, ObjectProperties.submittedAs, paper, submission, ObjectProperties.ofPaper);
+        ObjectProperties.createProperty(m, ObjectProperties.submittedTo, submission, venue, ObjectProperties.hasSubmission);
+        ObjectProperties.createProperty(m, ObjectProperties.publishedIn, submission, venuePublication, ObjectProperties.hasPublication);
 
         ObjectProperties.createProperty(m, ObjectProperties.belongsTo, venuePublication, venue, ObjectProperties.publishes);
 
         ObjectProperties.createProperty(m, ObjectProperties.manages, handler, venue, ObjectProperties.managedBy);
 
-        ObjectProperties.createProperty(m, ObjectProperties.assigns, handler, revision);
+        ObjectProperties.createProperty(m, ObjectProperties.assigns, handler, revision, ObjectProperties.assignedBy);
         ObjectProperties.createProperty(m, ObjectProperties.doneBy, revision, reviewer, ObjectProperties.takesPartIn);
         ObjectProperties.createProperty(m, ObjectProperties.reviews, revision, submission, ObjectProperties.reviewedBy);
 
         ObjectProperties.createProperty(m, ObjectProperties.paperRelatedTo, paper, field);
         ObjectProperties.createProperty(m, ObjectProperties.venueRelatedTo, venue, field);
+
+        ObjectProperties.createProperty(m, ObjectProperties.takesPlaceIn, proceedings, location);
 
         // --------------------
         // -----Attributes-----
@@ -277,10 +292,16 @@ public class TBox {
         DatatypeProperty paperAbstract = DataProperties.createStringAttribute(m, DataProperties.paperAbstract, paper);
         paperAbstract.addSuperProperty(RDFS.comment);
 
+        // Submission attributes
+        DataProperties.createAttribute(m, DataProperties.submissionDate, submission, XSDDatatype.XSDdate);
+        DataProperties.createAttribute(m, DataProperties.submissionAcceptedDate, submission, XSDDatatype.XSDdate);
+
         // Revision attributes
         DataProperties.createBooleanAttribute(m, DataProperties.accepted, revision);
         DatatypeProperty revisionText = DataProperties.createBooleanAttribute(m, DataProperties.reviewText, revision);
         revisionText.addSuperProperty(RDFS.comment);
+        DataProperties.createAttribute(m, DataProperties.revisionDateStart, revision, XSDDatatype.XSDdate);
+        DataProperties.createAttribute(m, DataProperties.revisionDateEnd, revision, XSDDatatype.XSDdate);
 
         // Field attributes
         DatatypeProperty keyword = DataProperties.createStringAttribute(m, DataProperties.keyword, field);
@@ -297,118 +318,134 @@ public class TBox {
         return m;
     }
 
-    private static OntModel createOverkillModel() {
-        OntModel m = ModelFactory.createOntologyModel(OntModelSpec.OWL_DL_MEM);
-        m = ModelFactory.createOntologyModel();
-        m.setNsPrefix("fd", NS);
+    private static void extendModel(OntModel m) {
 
-        // -------------------
-        // ------Classes------
-        // -------------------
+        // -----------------------------
+        // ------Class Hierarchies------
+        // -----------------------------
 
-        // People classes
+        Classes.makeClassesDisjoint(Arrays.asList(
+                m.getOntClass(Classes.academic),
+                m.getOntClass(Classes.venue),
+                m.getOntClass(Classes.venuePublication),
+                m.getOntClass(Classes.paper),
+                m.getOntClass(Classes.submission),
+                m.getOntClass(Classes.revision),
+                m.getOntClass(Classes.field)
+        ));
 
-        OntClass academic = m.createClass(NS + "Academic");
+        Classes.makeCompleteSubclasses(m,
+                m.getOntClass(Classes.academic),
+                Arrays.asList(
+                        m.getOntClass(Classes.author),
+                        m.getOntClass(Classes.reviewer),
+                        m.getOntClass(Classes.handler)
+                )
+        );
 
-        OntClass author = m.createClass(NS + "Author");
-        OntClass reviewer = m.createClass(NS + "Reviewer");
-        OntClass handler = m.createClass(NS + "Handler");
-        Classes.makeCompleteSubclasses(m, academic, Arrays.asList(author, reviewer, handler));
+        Classes.makeCompleteSubclasses(m,
+                m.getOntClass(Classes.handler),
+                Arrays.asList(
+                        m.getOntClass(Classes.chair),
+                        m.getOntClass(Classes.editor)
+                )
+        );
 
-        OntClass chair = m.createClass(NS + "Chair");
-        OntClass editor = m.createClass(NS + "Editor");
-        Classes.makeCompleteSubclasses(m, handler, Arrays.asList(chair, editor));
+        Classes.makeDisjointCompleteSubclasses(m,
+                m.getOntClass(Classes.paper),
+                Arrays.asList(
+                        m.getOntClass(Classes.fullPaper),
+                        m.getOntClass(Classes.shortPaper),
+                        m.getOntClass(Classes.demoPaper),
+                        m.getOntClass(Classes.poster)
+                )
+        );
 
-        // Paper classes
-        OntClass paper = m.createClass(NS + "Paper");
-        List<OntClass> paperSubclasses = Arrays.asList(m.createClass(NS + "Full_paper"), m.createClass(NS + "Short_paper"), m.createClass(NS + "Demo_paper"), m.createClass(NS + "Poster"));
-        Classes.makeDisjointCompleteSubclasses(m, paper, paperSubclasses);
+        Classes.makeDisjointCompleteSubclasses(m,
+                m.getOntClass(Classes.venue),
+                Arrays.asList(
+                        m.getOntClass(Classes.conference),
+                        m.getOntClass(Classes.journal)
+                )
+        );
 
-        // Venue classes
-        OntClass venue = m.createClass(NS + "Venue");
+        Classes.makeDisjointCompleteSubclasses(m,
+                m.getOntClass(Classes.conference),
+                Arrays.asList(
+                        m.getOntClass(Classes.regularConference),
+                        m.getOntClass(Classes.workshop),
+                        m.getOntClass(Classes.symposium),
+                        m.getOntClass(Classes.expertGroup)
+                )
+        );
 
-        OntClass conference = m.createClass(NS + "Conference");
-        OntClass journal = m.createClass(NS + "Journal");
-        Classes.makeDisjointCompleteSubclasses(m, venue, Arrays.asList(conference, journal));
+        Classes.makeDisjointCompleteSubclasses(m,
+                m.getOntClass(Classes.venuePublication),
+                Arrays.asList(
+                        m.getOntClass(Classes.proceedings),
+                        m.getOntClass(Classes.volume)
+                )
+        );
 
-        List<OntClass> conferenceSubclasses = Arrays.asList(m.createClass(NS + "Regular_conference"), m.createClass(NS + "Workshop"), m.createClass(NS + "Symposium"), m.createClass(NS + "Expert_group"));
-        Classes.makeDisjointCompleteSubclasses(m, conference, conferenceSubclasses);
-
-        // Venue Publication
-        OntClass venuePublication = m.createClass(NS + "Venue_publication");
-
-        OntClass proceedings = m.createClass(NS + "Proceedings");
-        OntClass volume = m.createClass(NS + "Volume");
-        Classes.makeDisjointCompleteSubclasses(m, venuePublication, Arrays.asList(proceedings, volume));
-
-        // Revision
-        OntClass revision = m.createClass(NS + "Revision");
-
-        // Field
-        OntClass field = m.createClass(NS + "Field");
-
-        Classes.makeClassesDisjoint(Arrays.asList(academic, venue, venuePublication, field, revision));
 
         // ------------------
         // ----Properties----
         // ------------------
 
-        OntProperty authors = ObjectProperties.createProperty(m, NS + "authors", author, paper, NS + "authored_by");
-        m.createMinCardinalityRestriction(internal(), authors, 1);
-        m.createMinCardinalityRestriction(internal(), authors.getInverse(), 1);
+        Restrictions.createMinCardinalityRestriction(m, m.getOntClass(Classes.author), m.getObjectProperty(ObjectProperties.authors), 1);
+        Restrictions.createMinCardinalityRestriction(m, m.getOntClass(Classes.paper), m.getObjectProperty(ObjectProperties.authoredBy), 1);
 
-        OntProperty belongsTo = ObjectProperties.createProperty(m, NS + "belongs_to", venuePublication, venue, NS + "publishes");
-        m.createCardinalityRestriction(internal(), belongsTo, 1);
-        Restrictions.createPropertyRestriction(m, belongsTo, proceedings, conference);
-        Restrictions.createPropertyRestriction(m, belongsTo, volume, journal);
+        Restrictions.createCardinalityRestriction(m, m.getOntClass(Classes.submission), m.getObjectProperty(ObjectProperties.submittedTo), 1);
+        Restrictions.createCardinalityRestriction(m, m.getOntClass(Classes.submission), m.getObjectProperty(ObjectProperties.ofPaper), 1);
+        Restrictions.createMaxCardinalityRestriction(m, m.getOntClass(Classes.submission), m.getObjectProperty(ObjectProperties.publishedIn), 1);
 
-        OntProperty manages = ObjectProperties.createProperty(m, NS + "manages", handler, venue, NS + "managed_by");
-        Restrictions.createMinCardinalityRestriction(m, handler, manages, 1);
-        Restrictions.createMinCardinalityRestriction(m, venue, manages.getInverse(), 1);
-        Restrictions.createPropertyRestriction(m, manages, editor, journal);
-        Restrictions.createPropertyRestriction(m, manages, chair, conference);
+        Restrictions.createCardinalityRestriction(m, m.getOntClass(Classes.venuePublication), m.getObjectProperty(ObjectProperties.belongsTo), 1);
+        Restrictions.createMinCardinalityRestriction(m, m.getOntClass(Classes.proceedings), m.getObjectProperty(ObjectProperties.takesPlaceIn), 1);
+        Restrictions.createPropertyRestriction(m, m.getObjectProperty(ObjectProperties.belongsTo), m.getOntClass(Classes.proceedings), m.getOntClass(Classes.conference));
+        Restrictions.createPropertyRestriction(m, m.getObjectProperty(ObjectProperties.belongsTo), m.getOntClass(Classes.volume), m.getOntClass(Classes.journal));
 
-        ObjectProperties.createProperty(m, NS + "assigns", handler, revision);
-        OntProperty doneBy = ObjectProperties.createProperty(m, NS + "done_by", revision, reviewer, NS + "takes_part_in");
-        m.createMinCardinalityRestriction(internal(), doneBy, 2);
-        OntProperty reviews = ObjectProperties.createProperty(m, NS + "reviews", revision, paper, NS + "reviewed_by");
-        m.createCardinalityRestriction(internal(), reviews, 1);
+        Restrictions.createMinCardinalityRestriction(m, m.getOntClass(Classes.handler), m.getObjectProperty(ObjectProperties.manages), 1);
+        Restrictions.createMinCardinalityRestriction(m, m.getOntClass(Classes.venue), m.getObjectProperty(ObjectProperties.managedBy), 1);
 
-        OntProperty relatedTo = ObjectProperties.createProperty(m, NS + "related_to", m.createUnionClass(null, m.createList(paper, venue)), field);
-        m.createMinCardinalityRestriction(internal(), relatedTo, 1);
+        Restrictions.createMinCardinalityRestriction(m, m.getOntClass(Classes.revision), m.getObjectProperty(ObjectProperties.assignedBy), 1);
+        Restrictions.createMinCardinalityRestriction(m, m.getOntClass(Classes.revision), m.getObjectProperty(ObjectProperties.doneBy), 2);
+        Restrictions.createMinCardinalityRestriction(m, m.getOntClass(Classes.reviewer), m.getObjectProperty(ObjectProperties.takesPartIn), 1);
+        Restrictions.createCardinalityRestriction(m, m.getOntClass(Classes.revision), m.getObjectProperty(ObjectProperties.reviews), 1);
+        Restrictions.createCardinalityRestriction(m, m.getOntClass(Classes.submission), m.getObjectProperty(ObjectProperties.reviewedBy), 1);
+
+        Restrictions.createMinCardinalityRestriction(m, m.getOntClass(Classes.paper), m.getObjectProperty(ObjectProperties.paperRelatedTo), 1);
+        Restrictions.createMinCardinalityRestriction(m, m.getOntClass(Classes.venue), m.getObjectProperty(ObjectProperties.venueRelatedTo), 1);
+
 
         // --------------------
         // -----Attributes-----
         // --------------------
 
-        // Name attribute
-//        DatatypeProperty name = createStringAttribute(m, NS + "name",
-//                m.createUnionClass(internal(), m.createList(academic, field, venue)), true);
-//        name.addSuperProperty(RDFS.label);
-
         // People attributes
-        DatatypeProperty name = DataProperties.createStringAttribute(m, NS + "name", academic, true);
-        name.addSuperProperty(RDFS.label);
-
+        Restrictions.createMinCardinalityRestriction(m, m.getOntClass(Classes.academic), m.getDatatypeProperty(DataProperties.name), 1);
 
         // Paper attributes
-        DatatypeProperty paperTitle = DataProperties.createStringAttribute(m, NS + "title", paper, true);
-        paperTitle.addSuperProperty(RDFS.label);
-        DatatypeProperty paperAbstract = DataProperties.createStringAttribute(m, NS + "abstract", paper, true);
-        paperAbstract.addSuperProperty(RDFS.comment);
+        Restrictions.createMinCardinalityRestriction(m, m.getOntClass(Classes.paper), m.getDatatypeProperty(DataProperties.title), 1);
+        Restrictions.createMinCardinalityRestriction(m, m.getOntClass(Classes.paper), m.getDatatypeProperty(DataProperties.paperAbstract), 1);
+        Restrictions.createMaxCardinalityRestriction(m, m.getOntClass(Classes.paper), m.getDatatypeProperty(DataProperties.doi), 1);
+
+        // Submission attributes
+        Restrictions.createCardinalityRestriction(m, m.getOntClass(Classes.submission), m.getDatatypeProperty(DataProperties.submissionDate), 1);
+        Restrictions.createMaxCardinalityRestriction(m, m.getOntClass(Classes.submission), m.getDatatypeProperty(DataProperties.submissionAcceptedDate), 1);
 
         // Revision attributes
-        DataProperties.createBooleanAttribute(m, NS + "accepted", revision, true);
-        DatatypeProperty revisionText = DataProperties.createBooleanAttribute(m, NS + "review_text", revision, true);
-        revisionText.addSuperProperty(RDFS.comment);
+        Restrictions.createMaxCardinalityRestriction(m, m.getOntClass(Classes.revision), m.getDatatypeProperty(DataProperties.accepted), 1);
+        Restrictions.createCardinalityRestriction(m, m.getOntClass(Classes.revision), m.getDatatypeProperty(DataProperties.revisionDateStart), 1);
+        Restrictions.createMaxCardinalityRestriction(m, m.getOntClass(Classes.revision), m.getDatatypeProperty(DataProperties.revisionDateEnd), 1);
 
         // Field attributes
+        Restrictions.createMinCardinalityRestriction(m, m.getOntClass(Classes.field), m.getDatatypeProperty(DataProperties.keyword), 1);
 
         // Venue attributes
+        Restrictions.createMinCardinalityRestriction(m, m.getOntClass(Classes.venue), m.getDatatypeProperty(DataProperties.venueName), 1);
 
         // Venue publication attributes
-        DatatypeProperty year = DataProperties.createAttribute(m, NS + "Year", venuePublication, XSDDatatype.XSDgYear, true);
-        return m;
+        Restrictions.createCardinalityRestriction(m, m.getOntClass(Classes.venuePublication), m.getDatatypeProperty(DataProperties.year), 1);
     }
 
 }

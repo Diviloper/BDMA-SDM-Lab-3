@@ -1,0 +1,29 @@
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX owl: <http://www.w3.org/2002/07/owl#>
+PREFIX fd: <https://ferrazzi.divi/#>
+
+SELECT ?person WHERE {
+    ?person rdf:type fd:Author
+}
+
+SELECT ?property WHERE {
+    ?property rdfs:domain fd:Author
+}
+
+SELECT ?property WHERE {
+    {?property rdfs:domain fd:Conference}
+    UNION
+    {?property rdfs:domain fd:Journal}
+}
+
+SELECT ?paper WHERE {
+    ?paper rdf:type fd:Paper ;
+           fd:authored_by fd:<insert author id here e.g. A15848771600> ;
+           fd:submitted_as ?submission .
+    ?submission rdf:type fd:Submission ;
+           		fd:published_in ?proceedings .
+    ?proceedings fd:belongs_to ?conference .
+    ?conference rdf:type fd:Conference ;
+                fd:venue_related_to ?field .
+    ?field rdfs:label "databases" .

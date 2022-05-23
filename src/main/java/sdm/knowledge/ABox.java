@@ -176,15 +176,18 @@ public class ABox {
     private Individual createVenuePublication(OntModel model, Individual venue, Map<String, String> values, boolean conference) {
         OntClass volumeClass = model.getOntClass(TBox.Classes.volume);
         OntClass proceedingsClass = model.getOntClass(TBox.Classes.proceedings);
+        OntClass locationClass = model.getOntClass(TBox.Classes.location);
         OntProperty venuePublicationYear = model.getDatatypeProperty(TBox.DataProperties.year);
         OntProperty belongsTo = model.getObjectProperty(TBox.ObjectProperties.belongsTo);
+        OntProperty takesPlaceIn = model.getObjectProperty(TBox.ObjectProperties.takesPlaceIn);
 
         OntClass venuePublicationClass = conference ? proceedingsClass : volumeClass;
         String vName = venueNames.get(values.get("Source title"));
-        Individual venuePublication = venuePublicationClass.createIndividual(name(vName, values.get(conference ? "Year" : "Volume")));
+        Individual venuePublication = venuePublicationClass.createIndividual(vName + "-" + values.get(conference ? "Year" : "Volume"));
         venuePublication.addLiteral(venuePublicationYear, model.createTypedLiteral(values.get("Year"), XSDDatatype.XSDgYear));
 
         venuePublication.addProperty(belongsTo, venue);
+        venuePublication.addProperty(takesPlaceIn, locationClass.createIndividual(TBox.DBPO + "Barcelona"));
 
         return venuePublication;
     }
