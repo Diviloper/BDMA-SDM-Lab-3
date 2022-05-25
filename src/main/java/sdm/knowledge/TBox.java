@@ -71,7 +71,7 @@ public class TBox {
         public static final String cites = NS + "cites";
         public static final String citedBy = NS + "cited_by";
         public static final String submittedAs = NS + "submitted_as";
-        public static final String ofPaper = NS + "of";
+        public static final String ofPaper = NS + "of_paper";
         public static final String submittedTo = NS + "submitted_to";
         public static final String hasSubmission = NS + "has_submission";
         public static final String publishedIn = NS + "published_in";
@@ -120,6 +120,7 @@ public class TBox {
         public static final String submissionDate = NS + "submission_date";
         public static final String submissionAcceptedDate = NS + "submission_accepted_date";
         public static final String year = NS + "year";
+        public static final String volumeNumber = NS + "volume_number";
         public static final String venueName = NS + "venue_name";
         public static final String keyword = NS + "keyword";
 
@@ -187,7 +188,7 @@ public class TBox {
         String outputPath = args[0];
 
         OntModel m = createBaseModel();
-//        extendModel(m);
+        extendModel(m);
 
         FileOutputStream output = new FileOutputStream(outputPath);
         RDFDataMgr.write(output, m, RDFFormat.TURTLE);
@@ -313,6 +314,7 @@ public class TBox {
 
         // Venue publication attributes
         DataProperties.createAttribute(m, DataProperties.year, venuePublication, XSDDatatype.XSDgYear);
+        DataProperties.createAttribute(m, DataProperties.volumeNumber, volume, XSDDatatype.XSDunsignedInt);
 
 
         return m;
@@ -446,6 +448,7 @@ public class TBox {
 
         // Venue publication attributes
         Restrictions.createCardinalityRestriction(m, m.getOntClass(Classes.venuePublication), m.getDatatypeProperty(DataProperties.year), 1);
+        Restrictions.createCardinalityRestriction(m, m.getOntClass(Classes.conference), m.getDatatypeProperty(DataProperties.volumeNumber), 1);
     }
 
 }

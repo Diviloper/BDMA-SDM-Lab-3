@@ -178,6 +178,7 @@ public class ABox {
         OntClass proceedingsClass = model.getOntClass(TBox.Classes.proceedings);
         OntClass locationClass = model.getOntClass(TBox.Classes.location);
         OntProperty venuePublicationYear = model.getDatatypeProperty(TBox.DataProperties.year);
+        OntProperty volumeNumber = model.getDatatypeProperty(TBox.DataProperties.volumeNumber);
         OntProperty belongsTo = model.getObjectProperty(TBox.ObjectProperties.belongsTo);
         OntProperty takesPlaceIn = model.getObjectProperty(TBox.ObjectProperties.takesPlaceIn);
 
@@ -187,7 +188,11 @@ public class ABox {
         venuePublication.addLiteral(venuePublicationYear, model.createTypedLiteral(values.get("Year"), XSDDatatype.XSDgYear));
 
         venuePublication.addProperty(belongsTo, venue);
-        venuePublication.addProperty(takesPlaceIn, locationClass.createIndividual(TBox.DBPO + "Barcelona"));
+        if (conference) {
+            venuePublication.addProperty(takesPlaceIn, locationClass.createIndividual(TBox.DBPO + "Barcelona"));
+        } else {
+            venuePublication.addProperty(volumeNumber, model.createTypedLiteral(values.get("Volume"), XSDDatatype.XSDunsignedInt));
+        }
 
         return venuePublication;
     }
