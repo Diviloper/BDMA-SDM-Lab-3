@@ -36,7 +36,14 @@ public class ABox {
 
     public static void main(String[] args) throws IOException, CsvValidationException {
         if (args.length < 3) {
-            System.out.println("Arguments: <Input model TBOX> <Data folder> <Output file>");
+            System.out.println("Invalid arguments");
+            System.out.println("Usage: java ABox <TBOX path> <resources path> <output path>");
+            System.out.println("\t <TBOX path>:        path to ttl file containing the TBOX generated with the TBOX class.");
+            System.out.println("\t                     ./src/main/resources/tbox.ttl");
+            System.out.println("\t <resources path>:   path to resources folder containing required csvs (data, citations reviews and reviewers)");
+            System.out.println("\t                     ./src/main/resources/");
+            System.out.println("\t <output path>:      path to file where the ABOX triples will be saved to.");
+            System.out.println("\t                     ./src/main/resources/abox.ttl");
         }
         String modelFilePath = args[0];
         String dataFolder = args[1];

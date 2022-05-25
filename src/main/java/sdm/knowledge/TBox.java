@@ -183,7 +183,10 @@ public class TBox {
 
     public static void main(String[] args) throws IOException {
         if (args.length < 1) {
-            System.out.println("Output path is required");
+            System.out.println("Invalid arguments");
+            System.out.println("Usage: java TBox <output path>");
+            System.out.println("\t <output path>: path to file where the TBOX triples will be saved to.");
+            System.out.println("\t                ./src/main/resources/tbox.ttl");
         }
         String outputPath = args[0];
 
