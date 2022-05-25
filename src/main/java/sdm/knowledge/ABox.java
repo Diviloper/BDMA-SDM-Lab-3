@@ -73,7 +73,7 @@ public class ABox {
             Individual venuePublication = createVenuePublication(model, venue, values, conference);
 
             // Submission
-            Individual submission = createSubmission(model, paper, venue, venuePublication);
+            Individual submission = createSubmission(model, paper, venue, venuePublication, values.get("Year"));
 
             // Fields
             createFields(model, values, paper, venue);
@@ -115,6 +115,8 @@ public class ABox {
         OntProperty managedBy = model.getObjectProperty(TBox.ObjectProperties.managedBy);
         OntProperty assigns = model.getObjectProperty(TBox.ObjectProperties.assigns);
         OntProperty submittedTo = model.getObjectProperty(TBox.ObjectProperties.submittedTo);
+        OntProperty startDate = model.getDatatypeProperty(TBox.DataProperties.revisionDateStart);
+        OntProperty endDate = model.getDatatypeProperty(TBox.DataProperties.revisionDateEnd);
 
         Individual revision = revisionClass.createIndividual(autoName("R"));
         revision.addLiteral(accepted, model.createTypedLiteral(true));
@@ -122,6 +124,10 @@ public class ABox {
 
         Individual submission = paperSubmissions.get(values.get("Paper"));
         revision.addProperty(reviews, submission);
+
+        String year = submission.getPropertyValue(model.getDatatypeProperty(TBox.DataProperties.submissionDate)).toString().split("-")[0];
+        revision.addProperty(startDate, model.createTypedLiteral(year + "-01-10", XSDDatatype.XSDdate));
+        revision.addProperty(endDate, model.createTypedLiteral(year + "-04-01", XSDDatatype.XSDdate));
 
         Individual venue = submission.getPropertyValue(submittedTo).as(Individual.class);
         Individual handler = venue.listPropertyValues(managedBy).toList().get(random.nextInt(3)).as(Individual.class);
@@ -158,16 +164,20 @@ public class ABox {
     }
 
     @NotNull
-    private Individual createSubmission(OntModel model, Individual paper, Individual venue, Individual venuePublication) {
+    private Individual createSubmission(OntModel model, Individual paper, Individual venue, Individual venuePublication, String year) {
         OntClass submissionClass = model.getOntClass(TBox.Classes.submission);
         OntProperty submittedAs = model.getObjectProperty(TBox.ObjectProperties.submittedAs);
         OntProperty submittedTo = model.getObjectProperty(TBox.ObjectProperties.submittedTo);
         OntProperty publishedIn = model.getObjectProperty(TBox.ObjectProperties.publishedIn);
+        OntProperty submissionDate = model.getDatatypeProperty(TBox.DataProperties.submissionDate);
+        OntProperty acceptedDate = model.getDatatypeProperty(TBox.DataProperties.submissionAcceptedDate);
 
         Individual submission = submissionClass.createIndividual(autoName("Sub"));
         paper.addProperty(submittedAs, submission);
         submission.addProperty(submittedTo, venue);
         submission.addProperty(publishedIn, venuePublication);
+        submission.addLiteral(submissionDate, model.createTypedLiteral(year + "-01-01", XSDDatatype.XSDdate));
+        submission.addLiteral(acceptedDate, model.createTypedLiteral(year + "-04-02", XSDDatatype.XSDdate));
 
         return submission;
     }
@@ -185,7 +195,9 @@ public class ABox {
         OntClass venuePublicationClass = conference ? proceedingsClass : volumeClass;
         String vName = venueNames.get(values.get("Source title"));
         Individual venuePublication = venuePublicationClass.createIndividual(vName + "-" + values.get(conference ? "Year" : "Volume"));
-        venuePublication.addLiteral(venuePublicationYear, model.createTypedLiteral(values.get("Year"), XSDDatatype.XSDgYear));
+        if (!venuePublication.hasProperty(venuePublicationYear)) {
+            venuePublication.addLiteral(venuePublicationYear, model.createTypedLiteral(values.get("Year"), XSDDatatype.XSDgYear));
+        }
 
         venuePublication.addProperty(belongsTo, venue);
         if (conference) {

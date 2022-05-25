@@ -27,3 +27,4 @@ SELECT ?paper WHERE {
     ?conference rdf:type fd:Conference ;
                 fd:venue_related_to ?field .
     ?field rdfs:label "databases" .
+}
